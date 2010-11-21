@@ -11,6 +11,27 @@
 	"lastUpdated":"2010-09-28 21:40:00"
 }
 
+/**
+================================
+To use this RIS.js:
+================================
+- To correctly import File Attachments, you must edit RIS.js and place the absolute path to your EndNote PDF folder (<path_to_folder_where_EndNote_library_lives>/<EndNote_library_name>.Data/PDF/) in the variable ENRIS_internalPDFPath.
+- If you want to get attached PDFs for Journal Articles, you need to go into the Refman Output Style in style editor (in EndNote X14 for Mac, you get there via Edit->Output Styles->Open Style Manager) and change L1 from outputting "URL" to outputting "File Attachments".  So the line will go from looking like this:
+
+L1  - `URL|`
+
+to looking like this:
+
+L1  - `File Attachments|`
+
+I'd probably make a copy of the style, too, before you change anything.
+
+--------------------------------
+Potential problems with RIS.js:
+--------------------------------
+- If you have lots of files attached to a given reference, Zotero will sometimes happy pinwheel (I use a mac - so Windows = hourglass? = crash, essentially, and freeze browser) doing file manipulations.  If you have references with lots of PDF attachments, it is probably better to import reference and attach files by hand.  I got references with 4 or 5 PDFs to work OK, though...
+*/
+
 Zotero.configure("dataMode", "line");
 Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
