@@ -17,7 +17,7 @@ Zotero.addOption("exportCharset", "UTF-8");
 
 // variables for EndNote-specific garbage
 // full path to EndNote directory that contains included files, including trailing slash.
-var ENRIS_internalPDFPath = "/Users/jonathanmorgan/Documents/work/research/EndNote-Library-jmorgan.Data/PDF/";
+var ENRIS_internalPDFPath = "/";
 
 function detectImport() {
 	var line;
