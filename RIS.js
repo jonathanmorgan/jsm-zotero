@@ -67,11 +67,12 @@ var fieldMap = {
 };
 
 var inputFieldMap = {
-	TI:"title",
+	AB:"abstractNote",
+	CN:"callNumber",
 	CT:"title",
 	CY:"place",
-	AB:"abstractNote",
-	CN:"callNumber"
+	//ET:"edition",
+	TI:"title"
 };
 
 // TODO: figure out if these are the best types for letter, interview, webpage
@@ -536,6 +537,12 @@ function processTag(item, tag, value, valueArray_IN ) {
 		} else {	// multiple ranges? hey, it's a possibility
 			item.pages += ", "+value;
 		}
+		
+		if ( item.itemType == "book" )
+		{
+			// In EndNote, books number of pages is in SP.
+			item.numPages = value;
+		}
 	} else if(tag == "EP") {
 		// end page
 		if(value) {
@@ -569,6 +576,19 @@ function processTag(item, tag, value, valueArray_IN ) {
 		else
 		{
 			item.ISSN = item.ISSN + ", " + value;
+		}
+	}
+	else if ( tag == "ET" )
+	{
+		if ( item.itemType == "journalArticle" )
+		{
+			// if journal article, in EndNote, ET = date accessed online
+			item.accessDate = value;
+		}
+		else
+		{
+			// If not journal article, ET = edition.
+			item.edition = value;
 		}
 	}
 	else if(tag == "UR" || tag == "L1" || tag == "L2" || tag == "L4")
