@@ -37,7 +37,7 @@ Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
 
 // full path to EndNote directory that contains included files, including trailing slash.
-var ENRIS_internalPDFPath = "/";
+var ENRIS_internalPDFPath = "";
 
 function detectImport() {
 	var line;
@@ -75,6 +75,11 @@ var inputFieldMap = {
 };
 
 // TODO: figure out if these are the best types for letter, interview, webpage
+// TODO: EDBOOK = book, too.  Need to rewrite so the EndNote code is the key,
+//    references value of Zotero type, since multiple EndNote types can map
+//    to one Zotero type.  Probably need to keep original type around, too, so
+//    we can reference it (since EDBOOK and BOOK have different output, for
+//    instance).
 var typeMap = {
 	book:"BOOK",
 	bookSection:"CHAP",
@@ -316,6 +321,29 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 
 } //-- END function processLinkTag() --//
 
+
+/**
+ * addCreatorName()
+ * Accepts the item we want to add a creator to, the name of the creator, and
+ *    the type of the creator.  Parses name, then adds to item.
+ *
+ * @param item_IN - item we are adding creator to.
+ * @param name_IN - string name of creator.
+ * @param type_IN - type of creator we are adding.
+ */
+function addCreatorName( item_IN, name_IN, type_IN )
+{
+	
+	// declare variables
+	var nameArray = null;
+
+	// parse name.
+	nameArray = name_IN.split(/, ?/);
+	item_IN.creators.push({lastName:nameArray[0], firstName:nameArray[1], creatorType:type_IN});
+	
+} //-- end function addCreatorName() --//
+
+
 function processTag(item, tag, value, valueArray_IN ) {
 	if (Zotero.Utilities.unescapeHTML) {
 		value = Zotero.Utilities.unescapeHTML(value.replace("\n", "<br>", "g"));
@@ -354,14 +382,29 @@ function processTag(item, tag, value, valueArray_IN ) {
 		}
 	} else if(tag == "BT") {
 		// ignore, unless this is a book or unpublished work, as per spec
-		if(item.itemType == "book" || item.itemType == "manuscript") {
+		if(item.itemType == "book" || item.itemType == "manuscript")
+		{
 			item.title = value;
-		} else {
+		}
+		else
+		{
 			item.backupPublicationTitle = value;
 		}
-	} else if(tag == "T2") {
-		item.backupPublicationTitle = value;
-	} else if(tag == "A1" || tag == "AU") {
+	}
+	else if(tag == "T2")
+	{
+		if(item.itemType == "book")
+		{
+			// EndNote places series name in T2 for books.
+			item.series = value;
+		}
+		else
+		{
+			item.backupPublicationTitle = value;
+		}
+	}
+	else if(tag == "A1" || tag == "AU")
+	{
 		// primary author (patent: inventor)
 		// store Zotero "creator type" in temporary variable
 		var tempType;
@@ -370,12 +413,16 @@ function processTag(item, tag, value, valueArray_IN ) {
 		} else {
 			tempType = "author";
 		}
-		var names = value.split(/, ?/);
-		item.creators.push({lastName:names[0], firstName:names[1], creatorType:tempType});
+		//var names = value.split(/, ?/);
+		//item.creators.push({lastName:names[0], firstName:names[1], creatorType:tempType});
+		addCreatorName( item, value, tempType );
 	} else if(tag == "ED") {
-		var names = value.split(/, ?/);
-		item.creators.push({lastName:names[0], firstName:names[1], creatorType:"editor"});
-	} else if(tag == "A2") {
+		//var names = value.split(/, ?/);
+		//item.creators.push({lastName:names[0], firstName:names[1], creatorType:"editor"});
+		addCreatorName( item, value, "editor" );
+	}
+	else if(tag == "A2")
+	{
 		// contributing author (patent: assignee)
 		if (item.itemType == "patent") {
 			if (item.assignee) {
@@ -385,9 +432,17 @@ function processTag(item, tag, value, valueArray_IN ) {
 			} else {
 				item.assignee =  value;
 			}
-		} else {
-			var names = value.split(/, ?/);
-			item.creators.push({lastName:names[0], firstName:names[1], creatorType:"contributor"});
+		}
+		else if ( item.itemType = "book" )
+		{
+			// EndNote puts Series Editor in A2.
+			addCreatorName( item, value, "seriesEditor" );
+		}
+		else
+		{
+			//var names = value.split(/, ?/);
+			//item.creators.push({lastName:names[0], firstName:names[1], creatorType:"contributor"});
+			addCreatorName( item, value, "contributor" );
 		}
 	} else if(tag == "Y1" || tag == "PY") {
 		// year or date
