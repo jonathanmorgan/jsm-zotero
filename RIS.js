@@ -29,7 +29,7 @@ I'd probably make a copy of the style, too, before you change anything.
 --------------------------------
 Potential problems with RIS.js:
 --------------------------------
-- If you have lots of files attached to a given reference, Zotero will sometimes happy pinwheel (I use a mac - so Windows = hourglass? = crash, essentially, and freeze browser) doing file manipulations.  If you have references with lots of PDF attachments, it is probably better to import reference and attach files by hand.  I got references with 4 or 5 PDFs to work OK, though...
+- If you have lots of files attached to a given reference, Zotero will sometimes happy pinwheel (I use a mac - so Windows = hourglass? = crash, essentially, and freeze browser) doing file manipulations.  If you have references with lots of PDF attachments, it is probably better to import reference without File Attachments (remove the L1 tag from the RIS file for those references), then attach files by hand.  I've gotten references with 4 attached files to work OK, though not as part of a large import.
 */
 
 Zotero.configure("dataMode", "line");
