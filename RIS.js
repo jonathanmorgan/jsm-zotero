@@ -15,7 +15,6 @@ Zotero.configure("dataMode", "line");
 Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
 
-// variables for EndNote-specific garbage
 // full path to EndNote directory that contains included files, including trailing slash.
 var ENRIS_internalPDFPath = "/";
 
@@ -44,14 +43,14 @@ var fieldMap = {
 	CY:"place",
 	JA:"journalAbbreviation",
 	//M3:"DOI",
-	//"DO":"DOI",
-	AB:"abstractNote"
 };
 
 var inputFieldMap = {
 	TI:"title",
 	CT:"title",
-	CY:"place"
+	CY:"place",
+	AB:"abstractNote",
+	CN:"callNumber"
 };
 
 // TODO: figure out if these are the best types for letter, interview, webpage
@@ -432,7 +431,10 @@ function processTag(item, tag, value, valueArray_IN ) {
 			}
 		} 
 		// ToDo: Handle correctly formatted Y2 fields (secondary date)
-	} else if( tag == "N1" || tag == "AB" ) {
+	}
+	// RN tag is EndNote research note tag.
+	else if( tag == "N1" || tag == "AB" || tag == "RN" )
+	{
 		// notes
 		if(value != item.title) {       // why does EndNote do this!?
 			item.notes.push({note:value});
@@ -475,6 +477,7 @@ function processTag(item, tag, value, valueArray_IN ) {
 		// would need to strip out "-" before checking length.
 		// If longer than 13, put in both.
 		// probably worth appending if ISBN, ISSN already set, too, since you could have both in one document.
+		// As far as EndNote is concerned, could just look at type - in SN, it passes ISBN with books, ISSN with non-books.
 		if(!item.ISBN)
 		{
 			item.ISBN = value;
@@ -623,9 +626,12 @@ function doImport(attachments) {
 					item.attachments = attachments[i];
 				}
 			}
-		} else {
+		}
+		else
+		{
 			// otherwise, assume this is data from the previous line continued
-			if(tag == "N1" || tag == "N2" || tag == "AB" || tag == "KW") {
+			if(tag == "N1" || tag == "N2" || tag == "AB" || tag == "KW" || tag == "RN" )
+			{
 				// preserve line endings for N1/N2/AB fields, for EndNote
 				// compatibility
 				data += "\n"+rawLine;
