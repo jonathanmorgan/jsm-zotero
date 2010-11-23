@@ -209,6 +209,10 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 			{
 				valueArray = testArray;
 			}
+			else
+			{
+				valueArray.push( value_IN );
+			}
 		}
 		else if ( valueArray.length == 1 )
 		{
