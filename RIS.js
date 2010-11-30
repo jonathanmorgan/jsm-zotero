@@ -37,7 +37,9 @@ Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
 
 // full path to EndNote directory that contains included files, including trailing slash.
-var ENRIS_internalPDFPath = "";
+var ENRIS_internalPDFPath = "/Users/jonathanmorgan/Documents/work/research/EndNote-Library-jmorgan.Data/PDF/";
+var ENRIS_acceptGroups = true;
+var ENRIS_idToGroupListMap = new Object();
 
 function detectImport() {
 	var line;
@@ -62,9 +64,10 @@ var fieldMap = {
 	T3:"series",
 	JF:"publicationTitle",
 	CY:"place",
-	JA:"journalAbbreviation",
+	JA:"journalAbbreviation"
 	//M3:"DOI",
 };
+
 
 var inputFieldMap = {
 	AB:"abstractNote",
@@ -75,6 +78,7 @@ var inputFieldMap = {
 	TI:"title"
 };
 
+
 // TODO: figure out if these are the best types for letter, interview, webpage
 // TODO: EDBOOK = book, too.  Need to rewrite so the EndNote code is the key,
 //    references value of Zotero type, since multiple EndNote types can map
@@ -82,53 +86,465 @@ var inputFieldMap = {
 //    we can reference it (since EDBOOK and BOOK have different output, for
 //    instance).
 var typeMap = {
+	artwork:"ART",
+	audioRecording:"SOUND",
+	bill:"BILL",
+	blogPost:"ELEC",
 	book:"BOOK",
 	bookSection:"CHAP",
-	journalArticle:"JOUR",
-	magazineArticle:"MGZN",
-	newspaperArticle:"NEWS",
-	thesis:"THES",
-	letter:"PCOMM",
-	manuscript:"PAMP",
-	interview:"PCOMM",
-	film:"MPCT",
-	artwork:"ART",
-	report:"RPRT",
-	bill:"BILL",
 	case:"CASE",
-	hearing:"HEAR",
-	patent:"PAT",
-	statute:"STAT",
-	map:"MAP",
-	blogPost:"ELEC",
-	webpage:"ELEC",
-	instantMessage:"ICOMM",
-	forumPost:"ICOMM",
-	email:"ICOMM",
-	audioRecording:"SOUND",
-	presentation:"GEN",
-	videoRecording:"VIDEO",
-	tvBroadcast:"GEN",
-	radioBroadcast:"GEN",
-	podcast:"GEN",
 	computerProgram:"COMP",
 	conferencePaper:"CONF",
-	document:"GEN"
+	dictionaryEntry:"DICT",
+	document:"GEN",
+	email:"ICOMM",
+	film:"MPCT",
+	forumPost:"ICOMM",
+	hearing:"HEAR",
+	instantMessage:"ICOMM",
+	interview:"PCOMM",
+	journalArticle:"JOUR",
+	letter:"PCOMM",
+	magazineArticle:"MGZN",
+	manuscript:"PAMP",
+	map:"MAP",
+	newspaperArticle:"NEWS",
+	patent:"PAT",
+	//podcast:"GEN",
+	podcast:"SOUND",
+	presentation:"GEN",
+	radioBroadcast:"GEN",
+	report:"RPRT",
+	statute:"STAT",
+	thesis:"THES",
+	tvBroadcast:"GEN",
+	videoRecording:"VIDEO",
+	webpage:"ELEC"
 };
 
 // supplements outputTypeMap for importing
 // TODO: DATA, MUSIC
+// instead, making this the master for all inputs (duplication, but there can
+//    be multiple RIS types that map to a given Zotero item type).
 var inputTypeMap = {
-	ABST:"journalArticle",
-	ADVS:"film",
-	CTLG:"magazineArticle",
-	INPR:"manuscript",
-	JFULL:"journalArticle",
-	PAMP:"manuscript",
-	SER:"book",
-	SLIDE:"artwork",
-	UNBILL:"manuscript"
+	ABST : "journalArticle",
+	ADVS : "film",
+	AGGR : "webpage", //supposed to be Aggregated Database...  No database item type?
+	ART : "artwork",
+	BILL : "bill",
+	BLOG : "blogPost",
+	BOOK : "book",
+	CASE : "case",
+	CHAP : "bookSection",
+	CHART : "artwork",
+	CLSWK : "document", // supposed to be "Classical Work"
+	COMP : "computerProgram",
+	CONF : "conferencePaper",
+	CPAPER : "conferencePaper",
+	CTLG : "magazineArticle",
+	DATA : "webpage", // supposed to be Dataset, but no item type for data yet?
+	DBASE : "webpage", // supposed to be Online Database, but no item type for data yet?
+	DICT : "dictionaryEntry",
+	EBOOK : "book",
+	EDBOOK : "book",
+	//ELEC : "blogPost",
+	ELEC : "webpage",
+	EQUA : "artwork", // supposed to be "Equation"
+	FIGURE : "artwork", // supposed to be "Figure"
+	//GEN : "presentation",
+	//GEN : "tvBroadcast",
+	//GEN : "radioBroadcast",
+	//GEN : "podcast",
+	GEN : "document",
+	GOVDOC : "document", // supposed to match "Government Document"
+	GRANT : "document", // supposed to be "Grant" or "Grant application".
+	HEAR : "hearing",
+	//ICOMM : "instantMessage",
+	//ICOMM : "forumPost",
+	ICOMM : "email",
+	INPR : "manuscript",
+	JFULL : "journalArticle",
+	JOUR : "journalArticle",
+	LEGAL : "statute", // supposed to match "Legal Rule or Regulation"
+	MANSCPT : "manuscript",
+	MAP : "map",
+	MGZN : "magazineArticle",
+	MPCT : "film",
+	MULTI : "webpage", // supposed to match "Online Multimedia".
+	MUSIC : "audioRecording", // supposed to match "Muscial Score".
+	NEWS : "newspaperArticle",
+	PAMP : "manuscript",
+	PAT : "patent",
+	//PCOMM : "letter",
+	PCOMM : "interview", // supposed to match to "Personal Communication"
+	RPRT : "report",
+	SER : "book",
+	SLIDE : "artwork",
+	SOUND : "audioRecording",
+	STAND : "document", // supposed to map to "Standard"
+	STAT : "statute",
+	THES : "thesis",
+	UNBILL : "manuscript",
+	UNPB : "manuscript",
+	VIDEO : "videoRecording",
+	WEB : "webpage"
 };
+
+/**
+ * Class ImportField
+ * object for each RIS property that holds:
+ * - inType - type of input mapping - either "direct" (get direct mapping to Zotero item property from inMapping) or "function" (get function pointer of function used to process RIS property from inFunction).
+ * - inMapping - if mapping between RIS field and Zotero item property is direct (inType = "direct"), name of associated Zotero item property.
+ * - inFunction - if mapping between RIS field and Zotero item is complicated (inType = "function"), so if different for different types, or lots of translation required, then this reference stores a function pointer to a function with a standard signature (use signature of function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )) that accepts item, tag name, value, and an optional value array, uses those values to appropriately process incoming tag, place the results in the item passed in.
+ * - isInSpec - boolean variable, set to true if RIS property is from actual spec, false if not.
+ * - all library functions re-used across multiple RIS properties.
+ * - method to accept item_IN, tag_IN, value_IN, valueArray_IN and deal with the internal configuration of the ImportField, return item_IN with the RIS tag appropriately processed.
+ */
+function ImportField( inType_IN, inMapping_IN, inFunction_IN, isInSpec_IN )
+{
+	// properties
+	this.inType = inType_IN;
+	this.inMapping = inMapping_IN;
+	this.inFunction = inFunction_IN;
+	this.isInSpec = isInSpec_IN;
+	
+	// methods
+	this.addCreatorName = addCreatorName;
+	
+	this.processImportField = function( item_IN, tag_IN, value_IN, valueArray_IN )
+	{
+		
+		// return reference
+		var item_OUT = item_IN;
+		
+		// declare variables
+		var myType = "";
+		
+		// get type
+		myType = this.inType;
+		
+		// direct or function?
+		if ( myType == ImportField.IN_TYPE_DIRECT )
+		{
+			
+			// direct mapping - place value in item.
+			item_OUT[ this.inMapping ] = value_IN;
+			
+		}
+		else if ( myType == ImportField.IN_TYPE_FUNCTION )
+		{
+			
+			// process using a function, not a direct mapping.
+			item_OUT = this.inFunction( item_IN, tag_IN, value_IN, valueArray_IN );
+			
+		}
+		
+		return item_IN;
+		
+	} //-- end function processImportField() --//
+
+} //-- end class ImportField --//
+
+ImportField.IN_TYPE_DIRECT = "direct";
+ImportField.IN_TYPE_FUNCTION = "function";
+
+
+/**
+ * addCreatorName()
+ * Accepts the item we want to add a creator to, the name of the creator, and
+ *    the type of the creator.  Parses name, then adds to item.
+ *
+ * @param item_IN - item we are adding creator to.
+ * @param name_IN - string name of creator.
+ * @param type_IN - type of creator we are adding.
+ */
+function addCreatorName( item_IN, name_IN, type_IN )
+{
+	
+	// declare variables
+	var nameArray = null;
+
+	// parse name.
+	nameArray = name_IN.split(/, ?/);
+	item_IN.creators.push({lastName:nameArray[0], firstName:nameArray[1], creatorType:type_IN});
+	
+} //-- end function addCreatorName() --//
+
+
+/**
+ * addDate()
+ * Accepts the item we want to add a date to, the name of the field where the
+ *    date should be stored, and the date value.  Parses date, adds to item.
+ *
+ * @param item_IN - item we are adding creator to.
+ * @param fieldName_IN - string name of field in item where we'll place date once it is transformed.
+ * @param value_IN - date value we are processing.
+ */
+function addDate( item_IN, fieldName_IN, value_IN )
+{
+	
+	// year or date
+	var dateParts = value_IN.split("/");
+
+	if ( dateParts.length == 1 )
+	{
+		// technically, if there's only one date part, the file isn't valid
+		// RIS, but EndNote writes this, so we have to too
+		// Nick: RIS spec example records also only contain a single part
+		// even though it says the slashes are not optional (?)
+		item_IN[ fieldName_IN ] = value_IN;
+	}
+	else
+	{
+
+		// in the case that we have a year and other data, format that way
+
+		var month = parseInt( dateParts[ 1 ] );
+		if ( month )
+		{
+			month--;
+		}
+		else
+		{
+			month = undefined;
+		}
+
+		item_IN[ fieldName_IN ] = Zotero.Utilities.formatDate({year:dateParts[0],
+								  month:month,
+							 	  day:dateParts[2],
+							      part:dateParts[3]});
+	}
+	
+} //-- end function addDate() --//
+
+
+function addMisc( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// Miscellaneous fields
+	if ( !item_IN.extra )
+	{
+		item_IN.extra = value_IN;
+	}
+	else
+	{
+		item_IN.extra += "; " + value_IN;
+	}
+	
+} //-- end function addMisc() --//
+
+
+function addNote( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// notes
+	if ( value_IN != item_IN.title )  // why does EndNote do this!?
+	{
+		item_IN.notes.push({note:value_IN});
+	}
+	
+} //-- end function addNote() --//
+
+
+function processBT( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// ignore, unless this is a book or unpublished work, as per spec
+	if ( item_OUT.itemType == "book" || item_OUT.itemType == "manuscript" )
+	{
+		item_OUT.title = value_IN;
+	}
+	else
+	{
+		item_OUT.backupPublicationTitle = value_IN;
+	}
+	
+	return item_OUT;
+
+} //-- end function processBT() --//
+
+
+/**
+ * function processCreator()
+ * Purpose: Breaks out processing of creator.
+ *
+ *
+ * Parameters:
+ * @param item_IN - Zotero Item instance that we are populating.
+ * @param tag_IN - String name of tag we are currently processing.
+ * @param value_IN - String value of current tag (if multiple lines, will be a space-delimited concatenation of values from each line).
+ * @param valueArray_IN - Array of String links we need to process.
+ */
+function processCreator( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	if ( tag_IN == "A1" || tag_IN == "AU" )
+	{
+		// primary author (patent: inventor)
+		// store Zotero "creator type" in temporary variable
+		var tempType;
+		if ( item_OUT.itemType == "patent" )
+		{
+			tempType = "inventor";
+		}
+		else
+		{
+			tempType = "author";
+		}
+		//var names = value.split(/, ?/);
+		//item.creators.push({lastName:names[0], firstName:names[1], creatorType:tempType});
+		addCreatorName( item_OUT, value_IN, tempType );
+	}
+	else if ( tag_IN == "ED" )
+	{
+		//var names = value.split(/, ?/);
+		//item.creators.push({lastName:names[0], firstName:names[1], creatorType:"editor"});
+		addCreatorName( item_OUT, value_IN, "editor" );
+	}
+	else if ( tag_IN == "A2" )
+	{
+		// contributing author (patent: assignee)
+		if ( item_OUT.itemType == "patent" )
+		{
+			if (item_OUT.assignee)
+			{
+				// Patents can have multiple assignees (applicants) but Zotero only allows a single
+				// assignee field, so we  have to concatenate them together
+				item_OUT.assignee += ", " + value_IN;
+			}
+			else
+			{
+				item_OUT.assignee = value_IN;
+			}
+		}
+		else if ( item_OUT.itemType = "book" )
+		{
+			// EndNote puts Series Editor in A2.
+			addCreatorName( item_OUT, value_IN, "seriesEditor" );
+		}
+		else
+		{
+			//var names = value.split(/, ?/);
+			//item.creators.push({lastName:names[0], firstName:names[1], creatorType:"contributor"});
+			addCreatorName( item_OUT, value_IN, "contributor" );
+		}
+	}
+
+	return item_OUT;
+
+} //-- end function processCreator() --//
+
+
+function processEP( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// end page
+	if ( value_IN )
+	{
+		if( !item_OUT.pages )
+		{
+			item_OUT.pages = value_IN;
+		}
+		else if ( value_IN != item_OUT.pages )
+		{
+			item_OUT.pages += "-" + value_IN;
+		}
+	}
+
+	return item_OUT;
+
+} //-- end function processEP() --//
+
+
+function processET( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	if ( item_OUT.itemType == "journalArticle" )
+	{
+		// if journal article, in EndNote, ET = date accessed online
+		item_OUT.accessDate = value_IN;
+	}
+	else
+	{
+		// If not journal article, ET = edition.
+		item_OUT.edition = value_IN;
+	}
+
+	return item_OUT;
+
+} //-- end function processEP() --//
+
+
+function processIS( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// Issue Number (patent: patentNumber)
+	if ( item_OUT.itemType == "patent" )
+	{
+		item_OUT.patentNumber = value_IN;
+	}
+	else
+	{
+		item_OUT.issue = value_IN;
+	}
+
+	return item_OUT;
+
+} //-- end function processEP() --//
+
+
+function processJO( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// conference paper or not?
+	if ( item_OUT.itemType == "conferencePaper" )
+	{
+		item_OUT.conferenceName = value_IN;
+	}
+	else
+	{
+		item_OUT.publicationTitle = value_IN;
+	}
+	
+	return item_OUT;
+
+} //-- end function processJO() --//
+
+
+function processKW( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// keywords/tags
+	
+	// technically, treating newlines as new tags breaks the RIS spec, but
+	// it's required to work with EndNote
+	item_OUT.tags = item_OUT.tags.concat( value_IN.split( "\n" ) );
+		
+	return item_OUT;
+
+} //-- end function processKW() --//
+
 
 /**
  * function processLinkTag()
@@ -150,6 +566,9 @@ var inputTypeMap = {
  */
 function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 {
+	
+	// return reference
+	item_OUT = null;
 
 	// declare variables
 	var linkType_URL = "url";
@@ -323,320 +742,313 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 	{
 		item_IN.attachments.push({url:value_IN, title:"Image", downloadable:true});
 	}
+	
+	item_OUT = item_IN;
+	return item_OUT;
 
 } //-- END function processLinkTag() --//
 
 
-/**
- * addCreatorName()
- * Accepts the item we want to add a creator to, the name of the creator, and
- *    the type of the creator.  Parses name, then adds to item.
- *
- * @param item_IN - item we are adding creator to.
- * @param name_IN - string name of creator.
- * @param type_IN - type of creator we are adding.
- */
-function addCreatorName( item_IN, name_IN, type_IN )
+function processPB( item_IN, tag_IN, value_IN, valueArray_IN )
 {
 	
-	// declare variables
-	var nameArray = null;
+	// return reference
+	var item_OUT = item_IN;
 
-	// parse name.
-	nameArray = name_IN.split(/, ?/);
-	item_IN.creators.push({lastName:nameArray[0], firstName:nameArray[1], creatorType:type_IN});
+	// publisher (patent: references)
+	if (item_OUT.itemType == "patent")
+	{
+		item_OUT.references = value_IN;
+	}
+	else
+	{
+		item_OUT.publisher = value_IN;
+	}
 	
-} //-- end function addCreatorName() --//
+	return item_OUT;
+
+} //-- end function processPB() --//
 
 
-function processTag(item, tag, value, valueArray_IN ) {
+function processPYorY1( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// add date to "date"
+	addDate( item_OUT, "date", value_IN );	
+	
+	return item_OUT;
+
+} //-- end function processT2() --//
+
+
+function processSN( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// ISSN/ISBN - just add both
+	// TODO We should be able to tell these apart
+	// ISSN = 8 digits
+	// ISBN = 10 or 13 digits
+	// would need to strip out "-" before checking length.
+	// If longer than 13, put in both.
+	// probably worth appending if ISBN, ISSN already set, too, since you could have both in one document.
+	// As far as EndNote is concerned, could just look at type - in SN, it passes ISBN with books, ISSN with non-books.
+	if ( !item_OUT.ISBN )
+	{
+		item_OUT.ISBN = value_IN;
+	}
+	else
+	{
+		item_OUT.ISBN = item_OUT.ISBN + ", " + value_IN;
+	}
+
+	if( !item_OUT.ISSN )
+	{
+		item_OUT.ISSN = value_IN;
+	}
+	else
+	{
+		item_OUT.ISSN = item_OUT.ISSN + ", " + value_IN;
+	}
+
+	return item_OUT;
+
+} //-- end function processSN() --//
+
+
+function processSP( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// start page
+	if ( !item_OUT.pages )
+	{
+		item_OUT.pages = value_IN;
+	}
+	else if ( item_OUT.pages[0] == "-" )
+	{
+		// already have ending page
+		item_OUT.pages = value_IN + item_OUT.pages;
+	}
+	else
+	{
+		// multiple ranges? hey, it's a possibility
+		item_OUT.pages += ", "+value_IN;
+	}
+
+	if ( item_OUT.itemType == "book" )
+	{
+		// In EndNote, book's number of pages is in SP.
+		item_OUT.numPages = value_IN;
+	}
+
+	return item_OUT;
+
+} //-- end function processSP() --//
+
+
+function processT2( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	if ( item_OUT.itemType == "book" )
+	{
+		// EndNote places series name in T2 for books.
+		item_OUT.series = value_IN;
+	}
+	else
+	{
+		item_OUT.backupPublicationTitle = value_IN;
+	}
+	
+	return item_OUT;
+
+} //-- end function processT2() --//
+
+
+function processTY( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// declare variables
+	var value = "";
+
+	// look for type
+	
+	// trim the whitespace that some providers (e.g. ProQuest) include
+	value = Zotero.Utilities.trim( value_IN );
+	
+	// no longer check the typeMap
+	//for(var i in typeMap) {
+	//	if(value == typeMap[i]) {
+	//		item.itemType = i;
+	//	}
+	//}
+	
+	// just check inputTypeMap
+	if ( !item_OUT.itemType)
+	{
+		if ( inputTypeMap[ value ] )
+		{
+			item_OUT.itemType = inputTypeMap[ value ];
+		}
+		else
+		{
+			// default to generic from inputTypeMap
+			item_OUT.itemType = inputTypeMap[ "GEN" ];
+		}
+	}
+	
+	// store the item's original type value, for use later
+	item_OUT.originalItemType = value;
+	
+	return item_OUT;
+
+} //-- end function processTY() --//
+
+
+function processVL( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// Volume Number (patent: applicationNumber)
+	if (item_OUT.itemType == "patent")
+	{
+		item_OUT.applicationNumber = value_IN;
+	// Report Number (report: reportNumber)
+	}
+	else if ( item_OUT.itemType == "report" )
+	{
+		item_OUT.reportNumber = value_IN;
+	}
+	else
+	{
+		item_OUT.volume = value_IN;
+	}
+
+	return item_OUT;
+
+} //-- end function processVL() --//
+
+
+function processY2( item_IN, tag_IN, value_IN, valueArray_IN )
+{
+	
+	// return reference
+	var item_OUT = item_IN;
+
+	// the secondary date field can mean two things, a secondary date, or an
+	// invalid EndNote-style date. let's see which one this is.
+	// patent: application (filing) date -- do not append to date field 
+	var dateParts = value_IN.split("/");
+	
+	if ( dateParts.length != 4 && item_OUT.itemType != "patent" )
+	{
+		// an invalid date and not a patent. 
+		// It's from EndNote or Delphion (YYYY-MM-DD)
+		if( item_OUT.date && value_IN.indexOf( item_OUT.date ) == -1 )
+		{
+			// append existing year
+			value_IN += " " + item_OUT.date;
+		}
+		item_OUT.date = value_IN;
+	}
+	else if ( item_OUT.itemType == "patent" )
+	{
+		
+		// add date
+		addDate( item_OUT, "filingDate", value_IN );
+
+	} 
+
+	// ToDo: Handle correctly formatted Y2 fields (secondary date)
+	// add date to "date"
+
+	return item_OUT;
+
+} //-- end function processY2() --//
+
+
+var risFieldToImportFieldMap = {
+	A1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
+	A2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
+	AB : new ImportField( ImportField.IN_TYPE_DIRECT, "abstractNote", null, true ),
+	AU : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
+	BT : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processBT, true ),
+	CN : new ImportField( ImportField.IN_TYPE_DIRECT, "callNumber", null, false ),
+	CT : new ImportField( ImportField.IN_TYPE_DIRECT, "title", null, true ),
+	CY : new ImportField( ImportField.IN_TYPE_DIRECT, "place", null, true ),
+	DO : new ImportField( ImportField.IN_TYPE_DIRECT, "DOI", null, false ),
+	ED : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
+	EP : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processEP, true ),
+	ET : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processET, true ),
+	ID : new ImportField( ImportField.IN_TYPE_DIRECT, "itemID", null, false ),
+	IS : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processIS, true ),
+	JA : new ImportField( ImportField.IN_TYPE_DIRECT, "journalAbbreviation", null, true ),
+	JF : new ImportField( ImportField.IN_TYPE_DIRECT, "publicationTitle", null, true ),
+	JO : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processJO, true ),
+	KW : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processKW, true ),
+	L1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processLinkTag, true ),
+	L2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processLinkTag, true ),
+	L4 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processLinkTag, true ),
+	M1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addMisc, true ),
+	M2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addMisc, true ),
+	N1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addNote, true ),
+	N2 : new ImportField( ImportField.IN_TYPE_DIRECT, "abstractNote", null, true ),
+	PB : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processPB, true ),
+	PY : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processPYorY1, true ),
+	RN : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addNote, true ),
+	SN : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processSN, true ),
+	SP : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processSP, true ),
+	T1 : new ImportField( ImportField.IN_TYPE_DIRECT, "title", null, true ),
+	T2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processT2, true ),
+	T3 : new ImportField( ImportField.IN_TYPE_DIRECT, "series", null, true ),
+	TI : new ImportField( ImportField.IN_TYPE_DIRECT, "title", null, true ),
+	TY : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processTY, true ),
+	UR : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processLinkTag, true ),
+	VL : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processVL, true ),
+	Y1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processPYorY1, true ),
+	Y2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processY2, true )
+}
+
+
+function processTag(item, tag, value, valueArray_IN )
+{
+	// declare variables
+	var importFieldInstance = null;
+	
 	if (Zotero.Utilities.unescapeHTML) {
 		value = Zotero.Utilities.unescapeHTML(value.replace("\n", "<br>", "g"));
 	}
     
-	if(fieldMap[tag]) {
-		item[fieldMap[tag]] = value;
-	} else if(inputFieldMap[tag]) {
-		item[inputFieldMap[tag]] = value;
-	} else if(tag == "TY") {
-		// look for type
+	// see if ImportField for current tag.
+	importFieldInstance = risFieldToImportFieldMap[ tag ];
+	if ( importFieldInstance )
+	{
+		// got one.  Process field.
+		item = importFieldInstance.processImportField( item, tag, value, valueArray_IN );
+	}
+	else
+	{
 		
-		// trim the whitespace that some providers (e.g. ProQuest) include
-		value = Zotero.Utilities.trim(value);
+		// not yet. Unknown field - store contents in a note, so they at least aren't lost.
+		addNote( item, tag, "Unknown tag " + tag + ": " + value, valueArray_IN );
 		
-		// first check typeMap
-		for(var i in typeMap) {
-			if(value == typeMap[i]) {
-				item.itemType = i;
-			}
-		}
-		// then check inputTypeMap
-		if(!item.itemType) {
-			if(inputTypeMap[value]) {
-				item.itemType = inputTypeMap[value];
-			} else {
-				// default to generic from inputTypeMap
-				item.itemType = inputTypeMap["GEN"];
-			}
-		}
-	} else if(tag == "JO") {
-		if (item.itemType == "conferencePaper"){
-			item.conferenceName = value;
-		} else {
-			item.publicationTitle = value;
-		}
-	} else if(tag == "BT") {
-		// ignore, unless this is a book or unpublished work, as per spec
-		if(item.itemType == "book" || item.itemType == "manuscript")
-		{
-			item.title = value;
-		}
-		else
-		{
-			item.backupPublicationTitle = value;
-		}
 	}
-	else if(tag == "T2")
-	{
-		if(item.itemType == "book")
-		{
-			// EndNote places series name in T2 for books.
-			item.series = value;
-		}
-		else
-		{
-			item.backupPublicationTitle = value;
-		}
-	}
-	else if(tag == "A1" || tag == "AU")
-	{
-		// primary author (patent: inventor)
-		// store Zotero "creator type" in temporary variable
-		var tempType;
-		if (item.itemType == "patent") {
-			tempType = "inventor";
-		} else {
-			tempType = "author";
-		}
-		//var names = value.split(/, ?/);
-		//item.creators.push({lastName:names[0], firstName:names[1], creatorType:tempType});
-		addCreatorName( item, value, tempType );
-	} else if(tag == "ED") {
-		//var names = value.split(/, ?/);
-		//item.creators.push({lastName:names[0], firstName:names[1], creatorType:"editor"});
-		addCreatorName( item, value, "editor" );
-	}
-	else if(tag == "A2")
-	{
-		// contributing author (patent: assignee)
-		if (item.itemType == "patent") {
-			if (item.assignee) {
-				// Patents can have multiple assignees (applicants) but Zotero only allows a single
-				// assignee field, so we  have to concatenate them together
-				item.assignee += ", "+value;
-			} else {
-				item.assignee =  value;
-			}
-		}
-		else if ( item.itemType = "book" )
-		{
-			// EndNote puts Series Editor in A2.
-			addCreatorName( item, value, "seriesEditor" );
-		}
-		else
-		{
-			//var names = value.split(/, ?/);
-			//item.creators.push({lastName:names[0], firstName:names[1], creatorType:"contributor"});
-			addCreatorName( item, value, "contributor" );
-		}
-	} else if(tag == "Y1" || tag == "PY") {
-		// year or date
-		var dateParts = value.split("/");
-
-		if(dateParts.length == 1) {
-			// technically, if there's only one date part, the file isn't valid
-			// RIS, but EndNote writes this, so we have to too
-			// Nick: RIS spec example records also only contain a single part
-			// even though it says the slashes are not optional (?)
-			item.date = value;
-		} else {
-			// in the case that we have a year and other data, format that way
-
-			var month = parseInt(dateParts[1]);
-			if(month) {
-				month--;
-			} else {
-				month = undefined;
-			}
-
-			item.date = Zotero.Utilities.formatDate({year:dateParts[0],
-								  month:month,
-								  day:dateParts[2],
-								  part:dateParts[3]});
-		}
-	} else if(tag == "Y2") {
-		// the secondary date field can mean two things, a secondary date, or an
-		// invalid EndNote-style date. let's see which one this is.
-		// patent: application (filing) date -- do not append to date field 
-		var dateParts = value.split("/");
-		if(dateParts.length != 4 && item.itemType != "patent") {
-			// an invalid date and not a patent. 
-			// It's from EndNote or Delphion (YYYY-MM-DD)
-			if(item.date && value.indexOf(item.date) == -1) {
-				// append existing year
-				value += " " + item.date;
-			}
-			item.date = value;
-		} else if (item.itemType == "patent") {
-				// Date-handling code copied from above
-			if(dateParts.length == 1) {
-				// technically, if there's only one date part, the file isn't valid
-				// RIS, but EndNote writes this, so we have to too
-				// Nick: RIS spec example records also only contain a single part
-				// even though it says the slashes are not optional (?)
-				item.filingDate = value;
-			} else {
-				// in the case that we have a year and other data, format that way
-
-				var month = parseInt(dateParts[1]);
-				if(month) {
-					month--;
-				} else {
-					month = undefined;
-				}
-
-				item.filingDate = Zotero.Utilities.formatDate({year:dateParts[0],
-								  month:month,
-								  day:dateParts[2],
-								  part:dateParts[3]});
-			}
-		} 
-		// ToDo: Handle correctly formatted Y2 fields (secondary date)
-	}
-	// RN tag is EndNote research note tag.
-	else if( tag == "N1" || tag == "AB" || tag == "RN" )
-	{
-		// notes
-		if(value != item.title) {       // why does EndNote do this!?
-			item.notes.push({note:value});
-		}
-	} else if( tag == "N2") {
-		// abstract
-		item.abstractNote = value;
-	} else if( tag == "DO") {
-		// DOI - EndNote default
-		item.DOI = value;
-	} else if(tag == "KW") {
-		// keywords/tags
-		
-		// technically, treating newlines as new tags breaks the RIS spec, but
-		// it's required to work with EndNote
-		item.tags = item.tags.concat(value.split("\n"));
-	} else if(tag == "SP") {
-		// start page
-		if(!item.pages) {
-			item.pages = value;
-		} else if(item.pages[0] == "-") {       // already have ending page
-			item.pages = value + item.pages;
-		} else {	// multiple ranges? hey, it's a possibility
-			item.pages += ", "+value;
-		}
-		
-		if ( item.itemType == "book" )
-		{
-			// In EndNote, books number of pages is in SP.
-			item.numPages = value;
-		}
-	} else if(tag == "EP") {
-		// end page
-		if(value) {
-			if(!item.pages) {
-				item.pages = value;
-			} else if(value != item.pages) {
-				item.pages += "-"+value;
-			}
-		}
-	} else if(tag == "SN") {
-		// ISSN/ISBN - just add both
-		// TODO We should be able to tell these apart
-		// ISSN = 8 digits
-		// ISBN = 10 or 13 digits
-		// would need to strip out "-" before checking length.
-		// If longer than 13, put in both.
-		// probably worth appending if ISBN, ISSN already set, too, since you could have both in one document.
-		// As far as EndNote is concerned, could just look at type - in SN, it passes ISBN with books, ISSN with non-books.
-		if(!item.ISBN)
-		{
-			item.ISBN = value;
-		}
-		else
-		{
-			item.ISBN = item.ISBN + ", " + value;
-		}
-		if(!item.ISSN)
-		{
-			item.ISSN = value;
-		}
-		else
-		{
-			item.ISSN = item.ISSN + ", " + value;
-		}
-	}
-	else if ( tag == "ET" )
-	{
-		if ( item.itemType == "journalArticle" )
-		{
-			// if journal article, in EndNote, ET = date accessed online
-			item.accessDate = value;
-		}
-		else
-		{
-			// If not journal article, ET = edition.
-			item.edition = value;
-		}
-	}
-	else if(tag == "UR" || tag == "L1" || tag == "L2" || tag == "L4")
-	{
-	
-		// use the new processLinkTag() method to deal with links.  Time to start
-		//    breaking this up.
-		processLinkTag( item, tag, value, valueArray_IN );
-
-	}
-	else if (tag == "IS")
-	{
-		// Issue Number (patent: patentNumber)
-		if (item.itemType == "patent") {
-			item.patentNumber = value;
-		} else {
-			item.issue = value;
-		}
-	} else if (tag == "VL") {
-		// Volume Number (patent: applicationNumber)
-		if (item.itemType == "patent") {
-			item.applicationNumber = value;
-		// Report Number (report: reportNumber)
-		} else if(item.itemType == "report") {
-			item.reportNumber = value;
-		} else {
-			item.volume = value;
-		}
-	} else if (tag == "PB") {
-		// publisher (patent: references)
-		if (item.itemType == "patent") {
-			item.references = value;
-		} else {
-			item.publisher = value;
-		}
-	} else if (tag == "M1" || tag == "M2") {
-		// Miscellaneous fields
-		if (!item.extra) {
-			item.extra = value;
-		} else {
-			item.extra += "; "+value;
-		}
-	}
-}
+} //-- end function processTag() --//
 
 function completeItem(item) {
 	// if backup publication title exists but not proper, use backup
