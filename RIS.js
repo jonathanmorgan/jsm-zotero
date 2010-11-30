@@ -37,7 +37,7 @@ Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
 
 // full path to EndNote directory that contains included files, including trailing slash.
-var ENRIS_internalPDFPath = "/Users/jonathanmorgan/Documents/work/research/EndNote-Library-jmorgan.Data/PDF/";
+var ENRIS_internalPDFPath = "";
 var ENRIS_acceptGroups = true;
 var ENRIS_idToGroupListMap = new Object();
 
@@ -994,7 +994,7 @@ var risFieldToImportFieldMap = {
 	DO : new ImportField( ImportField.IN_TYPE_DIRECT, "DOI", null, false ),
 	ED : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	EP : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processEP, true ),
-	ET : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processET, true ),
+	ET : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processET, false ),
 	ID : new ImportField( ImportField.IN_TYPE_DIRECT, "itemID", null, false ),
 	IS : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processIS, true ),
 	JA : new ImportField( ImportField.IN_TYPE_DIRECT, "journalAbbreviation", null, true ),
@@ -1006,13 +1006,15 @@ var risFieldToImportFieldMap = {
 	L4 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processLinkTag, true ),
 	M1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addMisc, true ),
 	M2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addMisc, true ),
+	M3 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addMisc, true ),
 	N1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addNote, true ),
 	N2 : new ImportField( ImportField.IN_TYPE_DIRECT, "abstractNote", null, true ),
 	PB : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processPB, true ),
 	PY : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processPYorY1, true ),
-	RN : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addNote, true ),
+	RN : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addNote, false ),
 	SN : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processSN, true ),
 	SP : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processSP, true ),
+	ST : new ImportField( ImportField.IN_TYPE_DIRECT, "shortTitle", null, true ),
 	T1 : new ImportField( ImportField.IN_TYPE_DIRECT, "title", null, true ),
 	T2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processT2, true ),
 	T3 : new ImportField( ImportField.IN_TYPE_DIRECT, "series", null, true ),
