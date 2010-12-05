@@ -27,9 +27,10 @@ L1  - `File Attachments|`
 I'd probably make a copy of the style, too, before you change anything.
 
 --------------------------------
-Potential problems with RIS.js:
+Notes on how this RIS.js works:
 --------------------------------
-- If you have lots of files attached to a given reference, Zotero will sometimes happy pinwheel (I use a mac - so Windows = hourglass? = crash, essentially, and freeze browser) doing file manipulations.  If you have references with lots of PDF attachments, it is probably better to import reference without File Attachments (remove the L1 tag from the RIS file for those references), then attach files by hand.  I've gotten references with 4 attached files to work OK, though not as part of a large import.
+- If you have lots of files attached to a given reference, Zotero will sometimes freeze up.  3 or 4 usually works just fine.  This code contains a variable ENRIS_maxImports that defines how many import files it will process per reference before storing subsequent ones in notes, such that you can import them by hand later.
+- processTY() is where the itemType is set, based on the reference type in the TY tag.
 */
 
 Zotero.configure("dataMode", "line");
@@ -37,9 +38,8 @@ Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
 
 // full path to EndNote directory that contains included files, including trailing slash.
-var ENRIS_internalPDFPath = "";
-var ENRIS_acceptGroups = true;
-var ENRIS_idToGroupListMap = new Object();
+var ENRIS_internalPDFPath = "/Users/jonathanmorgan/Documents/work/research/EndNote-Library-jmorgan.Data/PDF/";
+var ENRIS_maxImports = 4;
 
 function detectImport() {
 	var line;
@@ -147,6 +147,7 @@ var inputTypeMap = {
 	DICT : "dictionaryEntry",
 	EBOOK : "book",
 	EDBOOK : "book",
+	EJOUR : "webpage", // Electronic Journal in EndNote - just a web page?
 	//ELEC : "blogPost",
 	ELEC : "webpage",
 	EQUA : "artwork", // supposed to be "Equation"
@@ -393,6 +394,11 @@ function processCreator( item_IN, tag_IN, value_IN, valueArray_IN )
 		{
 			tempType = "inventor";
 		}
+		// see if EDBOOK - if so, then AU = editor, not author.
+		else if ( item_OUT.originalItemType == "EDBOOK" )
+		{
+			tempType = "editor";
+		}
 		else
 		{
 			tempType = "author";
@@ -423,10 +429,15 @@ function processCreator( item_IN, tag_IN, value_IN, valueArray_IN )
 				item_OUT.assignee = value_IN;
 			}
 		}
-		else if ( item_OUT.itemType = "book" )
+		else if ( item_OUT.itemType == "book" )
 		{
 			// EndNote puts Series Editor in A2.
 			addCreatorName( item_OUT, value_IN, "seriesEditor" );
+		}
+		else if ( item_OUT.itemType == "bookSection" )
+		{
+			// EndNote puts Editor in A2.
+			addCreatorName( item_OUT, value_IN, "editor" );
 		}
 		else
 		{
@@ -434,6 +445,12 @@ function processCreator( item_IN, tag_IN, value_IN, valueArray_IN )
 			//item.creators.push({lastName:names[0], firstName:names[1], creatorType:"contributor"});
 			addCreatorName( item_OUT, value_IN, "contributor" );
 		}
+	}
+	// in RefMan spec, this is "Series Author"
+	else if ( tag_IN == "A3" )
+	{
+		// EndNote puts Series Editor in A3 in chapters of edited books.
+		addCreatorName( item_OUT, value_IN, "seriesEditor" );
 	}
 
 	return item_OUT;
@@ -581,6 +598,8 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 	var testArray = "";
 	var arraySize = -1;
 	var currentValue = "";
+	var fileLinkCount = -1;
+	var overflowNote = "";
 	
 	//Zotero.debug( "*** In processTag, value:" + value );
 	
@@ -655,6 +674,7 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 			
 			// loop over the values passed in, processing each.
 			arraySize = valueArray.length;
+			fileLinkCount = 0;
 			for ( i = 0; i < arraySize; i++ )
 			{
 
@@ -727,8 +747,28 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 					
 					}
 				
-					// attach the item.
-					item_IN.attachments.push({url:currentValue, mimeType:myMIMEType, title:myFileName, downloadable:true});
+					// see if we've gone over the governor.  If so, then store
+					//    all information as a note, instead of an attachment.
+					if ( fileLinkCount < ENRIS_maxImports )
+					{
+						// attach the item.
+						item_IN.attachments.push({url:currentValue, mimeType:myMIMEType, title:myFileName, downloadable:true});
+						fileLinkCount++;
+					}
+					else
+					{
+						// over import limit.  Just make a note.
+						overflowNote = "Import limit of " + ENRIS_maxImports + " imported files reached.  The following file ( " + ( i + 1 ) + " of " + arraySize + " ) must be imported manually: file = " + myFileName + "; URL = " + currentValue + "; MIME type = " + myMIMEType;
+						
+						// add note
+						addNote( item_IN, tag_IN, overflowNote, valueArray_IN );
+						
+						// output debug message
+						Zotero.debug( " *** In RIS.js, processLinkTag(): " + overflowNote );
+						
+						// add flag to item itself
+						item.fileImportLimitReached = true;
+					}
 				}
 				
 			} //-- END loop over values --//
@@ -902,6 +942,7 @@ function processTY( item_IN, tag_IN, value_IN, valueArray_IN )
 		if ( inputTypeMap[ value ] )
 		{
 			item_OUT.itemType = inputTypeMap[ value ];
+			Zotero.debug( " *** in RIS.js, processTY(): value = " + value + "; itemType = " + item_OUT.itemType );
 		}
 		else
 		{
@@ -985,6 +1026,7 @@ function processY2( item_IN, tag_IN, value_IN, valueArray_IN )
 var risFieldToImportFieldMap = {
 	A1 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	A2 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
+	A3 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	AB : new ImportField( ImportField.IN_TYPE_DIRECT, "abstractNote", null, true ),
 	AU : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	BT : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processBT, true ),
@@ -1052,7 +1094,11 @@ function processTag(item, tag, value, valueArray_IN )
 	}
 } //-- end function processTag() --//
 
-function completeItem(item) {
+function completeItem(item)
+{
+	
+	Zotero.debug( " *** in RIS.js, completeItem(): before completing item - original item type = " + item.originalItemType + "; itemType = " + item.itemType );
+	
 	// if backup publication title exists but not proper, use backup
 	// (hack to get newspaper titles from EndNote)
 	if(item.backupPublicationTitle) {
