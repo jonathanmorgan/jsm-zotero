@@ -8,7 +8,7 @@
 	"maxVersion":"",
 	"priority":100,
 	"inRepository":true,
-	"lastUpdated":"2010-09-28 21:40:00"
+	"lastUpdated":"2010-12-12 16:07:00"
 }
 
 /**
@@ -94,7 +94,7 @@ Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
 
 // full path to EndNote directory that contains included files, including trailing slash.
-var ENRIS_internalPDFPath = "";
+var ENRIS_internalPDFPath = "/Users/jonathanmorgan/Documents/work/research/EndNote-Library-jmorgan.Data/PDF/";
 var ENRIS_maxImports = 20;
 
 function detectImport() {
@@ -540,7 +540,7 @@ function addMisc( item_IN, tag_IN, value_IN, valueArray_IN )
 	//else
 	//{
 		// Append miscellaneous fields to extra field.
-		appendToItemField( item_OUT, "extra", value_IN, "; " );
+		appendToItemField( item_IN, "extra", value_IN, "; " );
 	//}	
 } //-- end function addMisc() --//
 
@@ -822,12 +822,48 @@ function processKW( item_IN, tag_IN, value_IN, valueArray_IN )
 	
 	// return reference
 	var item_OUT = item_IN;
+	
+	// declare variables
+	var lineArray = null;
+	var i = -1;
+	var currentLine = "";
+	var tagArray = null;
 
 	// keywords/tags
 	
 	// technically, treating newlines as new tags breaks the RIS spec, but
 	// it's required to work with EndNote
-	item_OUT.tags = item_OUT.tags.concat( value_IN.split( "\n" ) );
+	// first, check to see if newlines
+	if ( value_IN.indexOf( "\n" ) > -1 )
+	{
+		lineArray = value_IN.split( "\n" );
+	}
+	else
+	{
+		lineArray = new Array();
+		lineArray.push( value_IN );
+	}
+	
+	// see if lineArray length is greater than 0
+	if ( lineArray.length > 0 )
+	{
+		// loop over each item in array.  Split each on ";" and add result to
+		//    tagArray.
+		tagArray = new Array();
+		for( i = 0; i < lineArray.length; i++ )
+		{
+			// get current line
+			currentLine = lineArray[ i ];
+			tagArray = tagArray.concat( currentLine.split( ";" ) );
+		}
+	}
+	else
+	{
+		tagArray = new Array();
+		tagArray.push( value_IN );
+	}
+	
+	item_OUT.tags = item_OUT.tags.concat( tagArray );
 		
 	return item_OUT;
 
@@ -876,6 +912,7 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 	// string substitution variables
 	var subStartIndex = -1;
 	var subFilePath = -1;
+	var internalPDFString = "INTERNAL-PDF://";
 	
 	//Zotero.debug( "*** In processTag, value:" + value );
 	
@@ -966,8 +1003,8 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 			
 				// see what link type the current value is.
 				// URL?
-				if ( currentValue.search( /^\s*https?:\/\//i ) > -1 )
-				//if ( ( currentValueUpcase.indexOf( "HTTP://" ) > -1 ) || ( currentValueUpcase.indexOf( "HTTPS://" ) > -1 ) )
+				//if ( currentValue.search( /^\s*https?:\/\//i ) > -1 )
+				if ( ( currentValueUpcase.indexOf( "HTTP://" ) > -1 ) || ( currentValueUpcase.indexOf( "HTTPS://" ) > -1 ) )
 				{
 				
 					// type is URL
@@ -975,8 +1012,8 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 				
 				}
 				// file?
-				else if ( currentValue.search( /^\s*file:\/\//i ) > -1 )
-				//else if ( currentValueUpcase.indexOf( "FILE://" ) > -1 )
+				//else if ( currentValue.search( /^\s*file:\/\//i ) > -1 )
+				else if ( currentValueUpcase.indexOf( "FILE://" ) > -1 )
 				{
 				
 					// type is file
@@ -984,8 +1021,8 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 				
 				}
 				// EndNote internal file?
-				else if ( currentValue.search( /^\s*internal-pdf:\/\//i ) > -1 )
-				//else if ( currentValueUpcase.indexOf( "INTERNAL-PDF://" ) > -1 )
+				//else if ( currentValue.search( /^\s*internal-pdf:\/\//i ) > -1 )
+				else if ( currentValueUpcase.indexOf( internalPDFString ) > -1 )
 				{
 				
 					// no path to use to update, so type is EndNote file
@@ -1023,14 +1060,14 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 							// got a correction path.  swap "internal-pdf://" for "file://<path>".
 							// regular expressions cause instability in import,
 							//    so doing this by hand.
-							currentValue = currentValue.replace( /^\s*internal-pdf:\/\//i, "file://" + ENRIS_internalPDFPath );
+							//currentValue = currentValue.replace( /^\s*internal-pdf:\/\//i, "file://" + ENRIS_internalPDFPath );
 
 							// get start index of "internal-pdf://"
-							//subStartIndex = currentValueUpcase.indexOf( "INTERNAL-PDF://" );
+							subStartIndex = currentValueUpcase.indexOf( internalPDFString );
 							
 							// get string
-							//subFilePath = currentValue.substr( subStartIndex + 15 );
-							//currentValue = "file://" + ENRIS_internalPDFPath + subFilePath;
+							subFilePath = currentValue.substr( subStartIndex + internalPDFString.length );
+							currentValue = "file://" + ENRIS_internalPDFPath + subFilePath;
 							
 						}
 					
@@ -1384,6 +1421,7 @@ var risFieldToImportFieldMap = {
 	"ID" : new ImportField( ImportField.IN_TYPE_DIRECT, "itemID", null, false ),
 	"IS" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processIS, true ),
 	"JA" : new ImportField( ImportField.IN_TYPE_DIRECT, "journalAbbreviation", null, true ),
+	"J2" : new ImportField( ImportField.IN_TYPE_DIRECT, "journalAbbreviation", null, true ),
 	"JF" : new ImportField( ImportField.IN_TYPE_DIRECT, "publicationTitle", null, true ),
 	"JO" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processJO, true ),
 	"KW" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processKW, true ),
