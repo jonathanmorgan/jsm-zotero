@@ -8,7 +8,7 @@
 	"maxVersion":"",
 	"priority":100,
 	"inRepository":true,
-	"lastUpdated":"2010-12-12 16:07:00"
+	"lastUpdated":"2010-12-14 12:54:00"
 }
 
 /**
@@ -288,6 +288,27 @@ function ImportField( inType_IN, inMapping_IN, inFunction_IN, isInSpec_IN )
 			item_OUT[ this.inMapping ] = value_IN;
 			
 		}
+		else if ( myType == ImportField.IN_TYPE_DIRECT_APPEND )
+		{
+
+			// direct mapping - if already a value, append item, separated by
+			//    a " ".
+			if ( item_OUT[ this.inMapping ] )
+			{
+				
+				// nothing in the field now, so just store value.
+				item_OUT[ this.inMapping ] = item_OUT[ this.inMapping ] + " " + value_IN;
+				
+			}
+			else
+			{
+				
+				// nothing in the field now, so just store value.
+				item_OUT[ this.inMapping ] = value_IN;
+				
+			}
+			
+		}
 		else if ( myType == ImportField.IN_TYPE_FUNCTION )
 		{
 			
@@ -302,6 +323,7 @@ function ImportField( inType_IN, inMapping_IN, inFunction_IN, isInSpec_IN )
 
 } //-- end class ImportField --//
 
+ImportField.IN_TYPE_DIRECT_APPEND = "directAppend";
 ImportField.IN_TYPE_DIRECT = "direct";
 ImportField.IN_TYPE_FUNCTION = "function";
 
@@ -1406,7 +1428,7 @@ var risFieldToImportFieldMap = {
 	"A1" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	"A2" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	"A3" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
-	"AB" : new ImportField( ImportField.IN_TYPE_DIRECT, "abstractNote", null, true ),
+	"AB" : new ImportField( ImportField.IN_TYPE_DIRECT_APPEND, "abstractNote", null, true ),
 	"AU" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	"BT" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processBT, true ),
 	"CN" : new ImportField( ImportField.IN_TYPE_DIRECT, "callNumber", null, false ),
