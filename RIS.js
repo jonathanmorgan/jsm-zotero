@@ -8,7 +8,7 @@
 	"maxVersion":"",
 	"priority":100,
 	"inRepository":true,
-	"lastUpdated":"2010-12-14 12:54:00"
+	"lastUpdated":"2010-12-16 11:35:00"
 }
 
 /**
@@ -18,7 +18,7 @@ To use this RIS.js:
 - To correctly import File Attachments, you must edit RIS.js and place the
     absolute path to your EndNote PDF folder:
 <path_to_folder_where_EndNote_library_lives>/<EndNote_library_name>.Data/PDF/
-    in the variable "ENRIS_internalPDFPath."
+    in the variable "RIS_internalPDFPath."
 - If you want to get attached PDFs for Journal Articles, you need to go into
     the Refman Output Style in style editor (in EndNote X14 for Mac, you get
     there via Edit->Output Styles->Open Style Manager) and change L1 from
@@ -38,7 +38,7 @@ Notes on how this RIS.js works:
 --------------------------------
 - If you have lots of files attached to a given reference, Zotero will
     sometimes freeze up.  3 or 4 usually works just fine.  This code contains
-    a variable, "ENRIS_maxImports", that defines how many import files it will
+    a variable, "RIS_maxImports", that defines how many import files it will
     process per reference before storing subsequent ones in notes, such that you
     can import them by hand later.  It will also attach a note and log debug
     messages each time it encounters a file that it doesn't import, so if you
@@ -94,8 +94,9 @@ Zotero.addOption("exportNotes", true);
 Zotero.addOption("exportCharset", "UTF-8");
 
 // full path to EndNote directory that contains included files, including trailing slash.
-var ENRIS_internalPDFPath = "/Users/jonathanmorgan/Documents/work/research/EndNote-Library-jmorgan.Data/PDF/";
-var ENRIS_maxImports = 20;
+var RIS_internalPDFPath = "";
+var RIS_maxImports = 20;
+var RIS_unknownTag = "RIS_unknown";
 
 function detectImport() {
 	var line;
@@ -936,7 +937,7 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 	var subFilePath = -1;
 	var internalPDFString = "INTERNAL-PDF://";
 	
-	//Zotero.debug( "*** In processTag, value:" + value );
+	Zotero.debug( "*** In RIS.js->processLinkTag, tag_IN: " + tag_IN + "; value:" + value_IN );
 	
 	// now, process attachments based on tag and linkType
 	if( tag_IN == "UR" )
@@ -963,6 +964,7 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 			// juat the one - add to list of attachments
 			item_IN.attachments.push({url:value_IN});
 		}
+		Zotero.debug( "*** In RIS.js->processLinkTag, item_IN.URL: " + item_IN.url + "; attachments:" + item_IN.attachments );
 	}
 	else if( tag_IN == "L1" )
 	{
@@ -1074,22 +1076,22 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 					if ( myLinkType == linkType_ENFile )
 					{
 					
-						// yes.  If corrected path stored in ENRIS_internalPDFPath, correct
+						// yes.  If corrected path stored in RIS_internalPDFPath, correct
 						//    (convert to file://).  If not, leave as is (it will break).
-						if ( ( ENRIS_internalPDFPath != null ) && ( ENRIS_internalPDFPath != "" ) )
+						if ( ( RIS_internalPDFPath != null ) && ( RIS_internalPDFPath != "" ) )
 						{
 							
 							// got a correction path.  swap "internal-pdf://" for "file://<path>".
 							// regular expressions cause instability in import,
 							//    so doing this by hand.
-							//currentValue = currentValue.replace( /^\s*internal-pdf:\/\//i, "file://" + ENRIS_internalPDFPath );
+							//currentValue = currentValue.replace( /^\s*internal-pdf:\/\//i, "file://" + RIS_internalPDFPath );
 
 							// get start index of "internal-pdf://"
 							subStartIndex = currentValueUpcase.indexOf( internalPDFString );
 							
 							// get string
 							subFilePath = currentValue.substr( subStartIndex + internalPDFString.length );
-							currentValue = "file://" + ENRIS_internalPDFPath + subFilePath;
+							currentValue = "file://" + RIS_internalPDFPath + subFilePath;
 							
 						}
 					
@@ -1097,7 +1099,7 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 				
 					// see if we've gone over the governor.  If so, then store
 					//    all information as a note, instead of an attachment.
-					if ( fileLinkCount < ENRIS_maxImports )
+					if ( fileLinkCount < RIS_maxImports )
 					{
 						// attach the item.
 						item_IN.attachments.push({url:currentValue, mimeType:myMIMEType, title:myFileName, downloadable:true});
@@ -1106,7 +1108,7 @@ function processLinkTag( item_IN, tag_IN, value_IN, valueArray_IN )
 					else
 					{
 						// over import limit.  Just make a note.
-						overflowNote = "Import limit of " + ENRIS_maxImports + " imported files reached.  The following file ( " + ( i + 1 ) + " of " + arraySize + " ) must be imported manually: file = " + myFileName + "; URL = " + currentValue + "; MIME type = " + myMIMEType;
+						overflowNote = "Import limit of " + RIS_maxImports + " imported files reached.  The following file ( " + ( i + 1 ) + " of " + arraySize + " ) must be imported manually: file = " + myFileName + "; URL = " + currentValue + "; MIME type = " + myMIMEType;
 						
 						// add note
 						addNote( item_IN, tag_IN, overflowNote, valueArray_IN );
@@ -1471,7 +1473,9 @@ var risFieldToImportFieldMap = {
 	"UR" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processLinkTag, true ),
 	"VL" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processVL, true ),
 	"Y1" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processPYorY1, true ),
-	"Y2" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processY2, true )
+	"Y2" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processY2, true ),
+	"RIS_unknown" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", addNote, true )
+	//"RIS_unknown" : new ImportField( ImportField.IN_TYPE_DIRECT_APPEND, "extra", null, true )
 }
 
 
@@ -1489,13 +1493,17 @@ function processTag(item, tag, value, valueArray_IN )
 	if ( importFieldInstance )
 	{
 		// got one.  Process field.
+		//Zotero.debug( "found match for " + tag );
 		item = importFieldInstance.processImportField( item, tag, value, valueArray_IN );
 	}
 	else
 	{
 		
 		// not yet. Unknown field - store contents in a note, so they at least aren't lost.
-		addNote( item, tag, "Unknown tag " + tag + ": " + value, valueArray_IN );
+		//Zotero.debug( "no match for " + tag + " adding note." );
+		//addNote( item, tag, "Unknown tag " + tag + ": " + value, valueArray_IN );
+		unknownHandler = risFieldToImportFieldMap[ RIS_unknownTag ];
+		item = unknownHandler.processImportField( item, RIS_unknownTag, "Unknown tag " + tag + ": " + value, valueArray_IN );
 		
 	}
 } //-- end function processTag() --//
