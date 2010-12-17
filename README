@@ -3,8 +3,15 @@ This repository is for my meagre contribution to zotero, streamlining import of 
 ================================
 To use this RIS.js:
 ================================
-- To correctly import File Attachments, you must edit RIS.js and place the absolute path to your EndNote PDF folder (<path_to_folder_where_EndNote_library_lives>/<EndNote_library_name>.Data/PDF/) in the variable ENRIS_internalPDFPath.
-- If you want to get attached PDFs for Journal Articles, you need to go into the Refman Output Style in style editor (in EndNote X14 for Mac, you get there via Edit->Output Styles->Open Style Manager) and change L1 from outputting "URL" to outputting "File Attachments".  So the line will go from looking like this:
+- To correctly import File Attachments, you must edit RIS.js and place the
+    absolute path to your EndNote PDF folder:
+<path_to_folder_where_EndNote_library_lives>/<EndNote_library_name>.Data/PDF/
+    in the variable "RIS_internalPDFPath."
+- If you want to get attached PDFs for Journal Articles, you need to go into
+    the Refman Output Style in style editor (in EndNote X14 for Mac, you get
+    there via Edit->Output Styles->Open Style Manager) and change L1 from
+    outputting "URL" to outputting "File Attachments".  So the line will go
+    from looking like this:
 
 L1  - `URL|`
 
@@ -15,6 +22,57 @@ L1  - `File Attachments|`
 I'd probably make a copy of the style, too, before you change anything.
 
 --------------------------------
-Potential problems with RIS.js:
+Notes on how this RIS.js works:
 --------------------------------
-- If you have lots of files attached to a given reference, Zotero will sometimes happy pinwheel (I use a mac - so Windows = hourglass? = crash, essentially, and freeze browser) doing file manipulations.  If you have references with lots of PDF attachments, it is probably better to import reference without File Attachments (remove the L1 tag from the RIS file for those references), then attach files by hand.  I've gotten references with 4 attached files to work OK, though not as part of a large import.
+- If you have lots of files attached to a given reference, Zotero will
+    sometimes freeze up.  3 or 4 usually works just fine.  This code contains
+    a variable, "RIS_maxImports", that defines how many import files it will
+    process per reference before storing subsequent ones in notes, such that you
+    can import them by hand later.  It will also attach a note and log debug
+    messages each time it encounters a file that it doesn't import, so if you
+    want to know which files you need to update, turn on debugging before you
+    run your import, then search for "RIS.js" in the debug output.
+
+- * If you disable all addons other than zotero and python when you run a large
+    import, it makes it much less likely you will break Firefox, even if you
+    have lots of attachments on some references.
+
+- the variable "RIS_risFieldToImportFieldMap", defined around line 1065, is the
+    master mapping of RIS tags to their processing instructions.  RIS tags are
+    either mapped directly to an EndNote field (CN is dumped into "callNumber" field):
+
+    CN : new ImportField( ImportField.IN_TYPE_DIRECT, "callNumber", null, false ),
+
+    or passed to a function for processing (A3 is passed to "processCreator" function):
+
+	A3 : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
+	
+	Any tag that isn't in the map will be appended to the reference as a note.
+
+- processing functions are defined above "RIS_risFieldToImportFieldMap", in
+    alphabetical order.  They should accept the following arguments:
+    - item_IN - Zotero Item instance that we are populating.
+    - tag_IN - String name of tag we are currently processing.
+    - value_IN - String value of current tag (if multiple lines, will be a space-delimited concatenation of values from each line).
+    - valueArray_IN - optional Array of values if multiple values for a given tag.
+
+- To add a new processing function, define the function, then either update the
+    mapping for the field you will process to reflect that it is now being
+    passed to a function instead of being placed directly into a field or add
+    a new row for the mapping.
+
+- Example of turning a direct mapping into a function (pass CN to "processCN"
+    instead of just putting it in the "callNumber" zotero field):
+
+    CN : new ImportField( ImportField.IN_TYPE_DIRECT, "callNumber", null, false ),
+
+    becomes (after defining processCN()):
+
+    CN : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCN, false ),
+
+- processTY() is where the itemType is set, based on the reference type in the
+    TY tag.
+
+- Regular Expression seem to make Firefox more likely to go out to lunch when
+    combined with PDF import and processing, so I removed all from my code in
+    this file.

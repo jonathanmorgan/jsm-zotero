@@ -85,8 +85,9 @@ Notes on how this RIS.js works:
 - processTY() is where the itemType is set, based on the reference type in the
     TY tag.
 
-- Regular Expression seem to make Firefox go out to lunch, so I removed most of them
-    all from this file.
+- Regular Expression seem to make Firefox more likely to go out to lunch when
+    combined with PDF import and processing, so I removed all from my code in
+    this file.
 */
 
 Zotero.configure("dataMode", "line");
