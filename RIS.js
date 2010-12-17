@@ -8,7 +8,7 @@
 	"maxVersion":"",
 	"priority":100,
 	"inRepository":true,
-	"lastUpdated":"2010-12-16 11:35:00"
+	"lastUpdated":"2010-12-16 23:48:00"
 }
 
 /**
@@ -49,7 +49,7 @@ Notes on how this RIS.js works:
     import, it makes it much less likely you will break Firefox, even if you
     have lots of attachments on some references.
 
-- the variable "risFieldToImportFieldMap", defined around line 1065, is the
+- the variable "RIS_risFieldToImportFieldMap", defined around line 1065, is the
     master mapping of RIS tags to their processing instructions.  RIS tags are
     either mapped directly to an EndNote field (CN is dumped into "callNumber" field):
 
@@ -61,7 +61,7 @@ Notes on how this RIS.js works:
 	
 	Any tag that isn't in the map will be appended to the reference as a note.
 
-- processing functions are defined above "risFieldToImportFieldMap", in
+- processing functions are defined above "RIS_risFieldToImportFieldMap", in
     alphabetical order.  They should accept the following arguments:
     - item_IN - Zotero Item instance that we are populating.
     - tag_IN - String name of tag we are currently processing.
@@ -1426,7 +1426,7 @@ function processY2( item_IN, tag_IN, value_IN, valueArray_IN )
 } //-- end function processY2() --//
 
 
-var risFieldToImportFieldMap = {
+var RIS_risFieldToImportFieldMap = {
 	"A1" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	"A2" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
 	"A3" : new ImportField( ImportField.IN_TYPE_FUNCTION, "", processCreator, true ),
@@ -1489,7 +1489,7 @@ function processTag(item, tag, value, valueArray_IN )
 	}
     
 	// see if ImportField for current tag.
-	importFieldInstance = risFieldToImportFieldMap[ tag ];
+	importFieldInstance = RIS_risFieldToImportFieldMap[ tag ];
 	if ( importFieldInstance )
 	{
 		// got one.  Process field.
@@ -1502,7 +1502,7 @@ function processTag(item, tag, value, valueArray_IN )
 		// not yet. Unknown field - store contents in a note, so they at least aren't lost.
 		//Zotero.debug( "no match for " + tag + " adding note." );
 		//addNote( item, tag, "Unknown tag " + tag + ": " + value, valueArray_IN );
-		unknownHandler = risFieldToImportFieldMap[ RIS_unknownTag ];
+		unknownHandler = RIS_risFieldToImportFieldMap[ RIS_unknownTag ];
 		item = unknownHandler.processImportField( item, RIS_unknownTag, "Unknown tag " + tag + ": " + value, valueArray_IN );
 		
 	}
